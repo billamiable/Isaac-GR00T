@@ -1,5 +1,5 @@
 # Finetune config used for single node post-training.
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from gr00t.data.embodiment_tags import EmbodimentTag
 
@@ -16,13 +16,36 @@ class FinetuneConfig:
     """
 
     # --- Data and Model Paths ---
-    base_model_path: str
+    base_model_path: str = ""
     """Path to the pretrained base model checkpoint (e.g., Hugging Face model hub or local directory)."""
 
-    dataset_path: str
-    """Path to the dataset root directory containing trajectory data for fine-tuning."""
+    transformers_local_files_only: bool = False
+    """
+    When loading from a Hugging Face repo id (e.g. nvidia/GR00T-N1.6-3B), set True to use only the HF cache
+    and never hit the network. Ignored when base_model_path is a local directory — that case always uses
+    local-only loading.
+  """
 
-    embodiment_tag: EmbodimentTag
+    # NOTE: `dataset_paths` is the preferred way for multi-dataset fine-tuning.
+    # `dataset_path` is kept for backwards compatibility.
+    dataset_path: str = None
+    """Legacy: single dataset root directory for fine-tuning."""
+
+    dataset_paths: list[str] | None
+    """
+    Preferred: multiple dataset root directories for fine-tuning.
+
+    When provided (non-empty), `launch_finetune.py` will construct `DataConfig.datasets`
+    with one entry per dataset path and will control mixing via `mix_ratios`.
+    """
+
+    mix_ratios: list[float] | None = None
+    """
+    Mixing ratios for `dataset_paths` (one float per dataset path).
+    If omitted, all dataset paths will use `mix_ratio=1.0`.
+    """
+
+    embodiment_tag: EmbodimentTag = EmbodimentTag.AGIBOT_GENIE1
     """Identifier specifying which embodiment (robot configuration) this fine-tuning run targets."""
 
     modality_config_path: str | None = None
@@ -98,7 +121,7 @@ class FinetuneConfig:
     gradient_accumulation_steps: int = 1
     """Number of forward passes to accumulate before performing a backward/update step."""
 
-    output_dir: str = "./outputs"
+    output_dir: str = ""
     """Directory where model checkpoints, logs, and outputs are saved."""
 
     save_steps: int = 1000

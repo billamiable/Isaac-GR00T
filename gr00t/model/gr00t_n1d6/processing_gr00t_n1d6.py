@@ -41,6 +41,8 @@ EMBODIMENT_TAG_TO_PROJECTOR_INDEX = {
     "oxe_google": 0,
     "oxe_widowx": 1,
     "oxe_droid": 16,
+    "agibot_genie1": 11,
+    "agibot_genie1_waist": 12,
     "new_embodiment": 10,
 }
 

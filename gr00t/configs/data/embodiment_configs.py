@@ -343,6 +343,125 @@ MODALITY_CONFIGS = {
             ],
         ),
     },
+    "agibot_genie1": {
+        "video": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=[
+                "top_head",
+                "hand_left",
+                "hand_right",
+            ],
+        ),
+        "state": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=[
+                "left_arm_joint_position",
+                "right_arm_joint_position",
+                "left_effector_position",
+                "right_effector_position",
+            ],
+        ),
+        "action": ModalityConfig(
+            delta_indices=list(range(0, 16)),
+            modality_keys=[
+                "left_arm_joint_position",
+                "right_arm_joint_position",
+                "left_effector_position",
+                "right_effector_position",
+            ],
+            action_configs=[
+                # left_arm_joint_position
+                ActionConfig(
+                    rep=ActionRepresentation.RELATIVE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                # right_arm_joint_position
+                ActionConfig(
+                    rep=ActionRepresentation.RELATIVE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                #left_effector_position
+                ActionConfig(
+                    rep=ActionRepresentation.ABSOLUTE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                #right_effector_position
+                ActionConfig(
+                    rep=ActionRepresentation.ABSOLUTE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                )
+            ],
+        ),
+        "language": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=["annotation.language.action_text"],
+        ),
+    },
+    "agibot_genie1_waist": {
+        "video": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=[
+                "top_head",
+                "hand_left",
+                "hand_right",
+            ],
+        ),
+        "state": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=[
+                "left_arm_joint_position",
+                "right_arm_joint_position",
+                "left_effector_position",
+                "right_effector_position",
+                "waist_position",
+            ],
+        ),
+        "action": ModalityConfig(
+            delta_indices=list(range(0, 16)),
+            modality_keys=[
+                "left_arm_joint_position",
+                "right_arm_joint_position",
+                "left_effector_position",
+                "right_effector_position",
+                "waist_position",
+            ],
+            action_configs=[
+                ActionConfig(
+                    rep=ActionRepresentation.RELATIVE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                ActionConfig(
+                    rep=ActionRepresentation.RELATIVE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                ActionConfig(
+                    rep=ActionRepresentation.ABSOLUTE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                ActionConfig(
+                    rep=ActionRepresentation.ABSOLUTE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+                ActionConfig(
+                    rep=ActionRepresentation.RELATIVE,
+                    type=ActionType.NON_EEF,
+                    format=ActionFormat.DEFAULT,
+                ),
+            ],
+        ),
+        "language": ModalityConfig(
+            delta_indices=[0],
+            modality_keys=["annotation.language.action_text"],
+        ),
+    },
 }
 
 

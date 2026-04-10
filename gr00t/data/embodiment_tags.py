@@ -54,6 +54,16 @@ class EmbodimentTag(Enum):
     The Behavior R1 Pro robot.
     """
 
+    AGIBOT_GENIE1 = "agibot_genie1"
+    """
+    The Agibot Genie1 robot.
+    """
+
+    AGIBOT_GENIE1_WAIST = "agibot_genie1_waist"
+    """
+    The Agibot Genie1 robot with 1-DOF waist joint.
+    """
+
     # New embodiment during post-training
     NEW_EMBODIMENT = "new_embodiment"
     """

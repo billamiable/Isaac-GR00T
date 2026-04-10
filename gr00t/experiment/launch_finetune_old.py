@@ -41,12 +41,10 @@ def _normalize_embodiment_tag(tag: EmbodimentTag | str) -> EmbodimentTag:
 
 
 if __name__ == "__main__":
-    # Set LOGURU_LEVEL environment variable if not already set (default: INFO)
     if "LOGURU_LEVEL" not in os.environ:
         os.environ["LOGURU_LEVEL"] = "INFO"
     # Use tyro for clean CLI
     ft_config = tyro.cli(FinetuneConfig, description=__doc__)
-    print(ft_config)
     embodiment_tag = _normalize_embodiment_tag(ft_config.embodiment_tag).value
 
     # all rank workers should register for the modality config
@@ -57,43 +55,17 @@ if __name__ == "__main__":
         {
             "data": {
                 "download_cache": False,
-                # NOTE: `DataConfig.datasets` supports multiple datasets.
-                # For fine-tuning, we let users provide `dataset_paths` and optional
-                # `mix_ratios` (both are CLI args of `FinetuneConfig`).
-                "datasets": [],
+                "datasets": [
+                    {
+                        "dataset_paths": [ft_config.dataset_path],
+                        "mix_ratio": 1.0,
+                        "embodiment_tag": embodiment_tag,
+                    }
+                ],
             }
         }
     )
     config.load_config_path = None
-
-    # Resolve dataset paths and mixing ratios.
-    if ft_config.dataset_paths is not None:
-        if len(ft_config.dataset_paths) == 0:
-            raise ValueError("--dataset-paths is provided but empty.")
-        dataset_paths = list(ft_config.dataset_paths)
-    else:
-        dataset_paths = [ft_config.dataset_path]
-
-    if ft_config.mix_ratios is None:
-        mix_ratios = [1.0] * len(dataset_paths)
-    else:
-        mix_ratios = list(ft_config.mix_ratios)
-        if len(mix_ratios) != len(dataset_paths):
-            raise ValueError(
-                f"Length mismatch: got {len(dataset_paths)} dataset path(s) "
-                f"but {len(mix_ratios)} mix_ratio value(s)."
-            )
-
-    # IMPORTANT: `Config.validate()` expects dataclass instances (SingleDatasetConfig),
-    # not raw dicts.
-    config.data.datasets = [
-        SingleDatasetConfig(
-            dataset_paths=[p],
-            mix_ratio=float(r),
-            embodiment_tag=embodiment_tag,
-        )
-        for p, r in zip(dataset_paths, mix_ratios)
-    ]
 
     # overwrite with finetune config supplied by the user
     config.model.tune_llm = ft_config.tune_llm
@@ -115,26 +87,8 @@ if __name__ == "__main__":
     config.model.backbone_trainable_params_fp32 = True
     config.model.use_relative_action = True
 
-    # Resolve local checkpoint vs Hugging Face Hub id. If an absolute path does not exist,
-    # transformers may treat it as a repo id and fail with HFValidationError — fail early with
-    # a clear message (typical in Docker when the host path is not bind-mounted).
-    _raw_ckpt = ft_config.base_model_path.strip()
-    _expanded = os.path.expanduser(_raw_ckpt.rstrip("/"))
-    if os.path.isabs(_expanded):
-        if not os.path.isdir(_expanded):
-            raise FileNotFoundError(
-                f"base_model_path is an absolute filesystem path but is not a directory: {_expanded!r}. "
-                "Bind-mount your weights into the container (or use a path that exists inside it). "
-                "Example: -v /host/models:/path/to/base_model_path"
-            )
-        config.training.start_from_checkpoint = os.path.realpath(_expanded)
-        config.training.transformers_local_files_only = True
-    elif os.path.isdir(_expanded):
-        config.training.start_from_checkpoint = os.path.realpath(_expanded)
-        config.training.transformers_local_files_only = True
-    else:
-        config.training.start_from_checkpoint = _raw_ckpt
-        config.training.transformers_local_files_only = ft_config.transformers_local_files_only
+
+    config.training.start_from_checkpoint = ft_config.base_model_path
     config.training.optim = "adamw_torch"
     config.training.global_batch_size = ft_config.global_batch_size
     config.training.dataloader_num_workers = ft_config.dataloader_num_workers
