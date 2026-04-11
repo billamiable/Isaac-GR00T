@@ -31,7 +31,7 @@ class FinetuneConfig:
     dataset_path: str = None
     """Legacy: single dataset root directory for fine-tuning."""
 
-    dataset_paths: list[str] | None
+    dataset_paths: list[str] | None = None
     """
     Preferred: multiple dataset root directories for fine-tuning.
 
