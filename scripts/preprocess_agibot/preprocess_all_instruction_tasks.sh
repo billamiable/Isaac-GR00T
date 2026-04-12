@@ -6,6 +6,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PREPROCESS_SH="${SCRIPT_DIR}/preprocess_agibot_data.sh"
+ENV_SH="${TRAINING_ENV_SH:-${SCRIPT_DIR}/training_paths.sh}"
+
+if [[ -f "${ENV_SH}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_SH}"
+fi
 
 SRC_ROOT="${SRC_ROOT:-/home/shadeform/iDataset/simulation/task_suite/instruction}"
 DST_ROOT="${DST_ROOT:-/home/shadeform/iDataset/simulation/task_suite/instruction_preprocessed}"

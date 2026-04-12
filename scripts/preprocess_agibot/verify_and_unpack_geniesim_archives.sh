@@ -1,31 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_SH="${TRAINING_ENV_SH:-${SCRIPT_DIR}/training_paths.sh}"
+
+if [[ -f "${ENV_SH}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_SH}"
+fi
+
 usage() {
   cat <<'EOF'
 Verify and optionally unpack GenieSim task archives.
 
 Usage:
-  verify_and_unpack_geniesim_archives.sh <instruction_root> [--extract]
+  verify_and_unpack_geniesim_archives.sh [instruction_root] [--extract]
 
 Examples:
+  # Use RAW_ROOT from training_paths.sh
+  bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh --extract
+
   # Verify only (no file writes)
   bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh \
-    ~/iDataset/simulation/task_suite/instruction
+    /ephemeral/agibot/instruction
 
   # Verify and extract
   bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh \
-    ~/iDataset/simulation/task_suite/instruction --extract
+    /ephemeral/agibot/instruction --extract
 EOF
 }
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
+if [[ $# -ge 1 && "${1}" != "--extract" ]]; then
+  INSTRUCTION_ROOT="$1"
+  shift
+else
+  INSTRUCTION_ROOT="${RAW_ROOT:-}"
 fi
-
-INSTRUCTION_ROOT="$1"
-shift
 
 DO_EXTRACT=0
 if [[ "${1:-}" == "--extract" ]]; then
@@ -34,6 +44,11 @@ if [[ "${1:-}" == "--extract" ]]; then
 fi
 
 if [[ $# -ne 0 ]]; then
+  usage
+  exit 1
+fi
+
+if [[ -z "${INSTRUCTION_ROOT}" ]]; then
   usage
   exit 1
 fi

@@ -1,153 +1,136 @@
-# Updated User Guide (GenieSim -> GR00T Post-Training)
+# Updated User Guide (Simple Training Flow)
 
-This guide describes the current workflow we are using:
-- Cloud: data extraction, preprocessing, and GR00T finetuning with `uv`.
-- Local: simulation evaluation with trained checkpoints.
+This guide assumes one convention:
 
-Docker is intentionally removed from this guide.
+- code lives under `home`
+- large data lives under `ephemeral`
+- you already have a preprocessed dataset
 
-## 0) Paths Used in This Guide
+Main paths:
 
-- Repo root: `/home/shadeform/iCode/VLA/Isaac-GR00T`
-- Raw dataset root: `/home/shadeform/iDataset/simulation/task_suite/instruction`
-- Preprocessed dataset root: `/home/shadeform/iDataset/simulation/task_suite/instruction_preprocessed`
-- Base model: `/home/shadeform/iDataset/VLA/gr00t/GR00T-N1.6-3B`
-- Training outputs: `/ephemeral/gr00t_models/...`
+- repo: `/home/$USER/iCode/VLA/Isaac-GR00T`
+- preprocessed data: `/ephemeral/agibot/instruction_preprocessed`
+- base model: `/ephemeral/models/GR00T-N1.6-3B`
+- outputs: `/ephemeral/gr00t_models`
 
-## 1) Prepare uv Environment
+## 1) Configure Paths Once
 
-Install/sync dependencies:
+Edit:
+
+- `scripts/preprocess_agibot/training_paths.sh`
+
+This file should only define the key paths:
+
+- `RAW_ROOT`
+- `PREPROCESSED_ROOT`
+- `BASE_MODEL_PATH`
+- `OUTPUT_ROOT`
+
+Then load it:
 
 ```bash
-cd /home/shadeform/iCode/VLA/Isaac-GR00T
-uv sync
-uv run python -c "import torch, transformers; print(torch.__version__, transformers.__version__)"
+cd /home/$USER/iCode/VLA/Isaac-GR00T
+source scripts/preprocess_agibot/training_paths.sh
 ```
 
-Note:
-- The preprocessing wrapper uses `uv run --with decord python`, so `decord` is injected automatically for preprocessing.
-
-## 2) Verify and Extract Raw Data Archives
-
-Run from repo root:
+If you want these paths in every shell automatically, add this to `~/.bashrc`:
 
 ```bash
-cd /home/shadeform/iCode/VLA/Isaac-GR00T
-
-# Verify archives only
-bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh \
-  /home/shadeform/iDataset/simulation/task_suite/instruction
-
-# Verify + extract all tasks
-bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh \
-  /home/shadeform/iDataset/simulation/task_suite/instruction --extract
+source /home/$USER/iCode/VLA/Isaac-GR00T/scripts/preprocess_agibot/training_paths.sh
 ```
 
-Expected summary:
-- `tasks=10, ok=10, fail=0`
+## 2) Run Sanity Check
 
-## 3) Preprocess All 10 Tasks
-
-Use the batch script:
+Run:
 
 ```bash
-cd /home/shadeform/iCode/VLA/Isaac-GR00T
-bash scripts/preprocess_agibot/preprocess_all_instruction_tasks.sh
+cd /home/$USER/iCode/VLA/Isaac-GR00T
+bash scripts/preprocess_agibot/check_training_env.sh
 ```
 
-Optional modes:
+This script checks:
+
+- `uv`, `nvidia-smi`, and basic command availability
+- repo and `.venv`
+- CUDA runtime health
+- base model path
+- preprocessed dataset root
+- the 10 expected preprocessed task directories
+
+If this passes, the environment is ready for training.
+
+## 3) Train
+
+Run:
 
 ```bash
-# Trim dry-run only (preprocess still runs)
-MODE=dry-run bash scripts/preprocess_agibot/preprocess_all_instruction_tasks.sh
-
-# Skip video resizing if source videos are already suitable
-SKIP_VIDEO=1 bash scripts/preprocess_agibot/preprocess_all_instruction_tasks.sh
-```
-
-Quick validation:
-
-```bash
-python3 - <<'PY'
-from pathlib import Path
-root = Path('/home/shadeform/iDataset/simulation/task_suite/instruction_preprocessed')
-tasks = sorted([p for p in root.iterdir() if p.is_dir()])
-print('task_count=', len(tasks))
-for t in tasks:
-    pq = sum(1 for _ in (t/'data').rglob('*.parquet'))
-    print(t.name, 'info=', (t/'meta'/'info.json').exists(), 'parquet=', pq)
-PY
-```
-
-## 4) Finetune on All Instruction Tasks
-
-Training script:
-- `scripts/preprocess_agibot/finetune_geniesim_instruction.sh`
-
-Before training:
-
-```bash
-cd /home/shadeform/iCode/VLA/Isaac-GR00T
-uv run wandb login
-```
-
-Run training:
-
-```bash
+cd /home/$USER/iCode/VLA/Isaac-GR00T
 bash scripts/preprocess_agibot/finetune_geniesim_instruction.sh
 ```
 
-### Color jitter option
+The training script reads path defaults from `training_paths.sh` automatically.
 
-The script supports:
-- `USE_COLOR_JITTER=0|1` (default `0`)
-- `COLOR_JITTER_PARAMS` (when `USE_COLOR_JITTER=1`)
+Training-related defaults such as these stay inside `finetune_geniesim_instruction.sh`:
 
-Examples:
+- `NUM_GPUS`
+- `CUDA_VISIBLE_DEVICES`
+- `DATALOADER_NUM_WORKERS`
+- `MASTER_PORT`
+- `USE_COLOR_JITTER`
+
+Only override them inline when you want a one-off run:
 
 ```bash
-# No color jitter (default)
-bash scripts/preprocess_agibot/finetune_geniesim_instruction.sh
-
-# Enable color jitter with default params
 USE_COLOR_JITTER=1 bash scripts/preprocess_agibot/finetune_geniesim_instruction.sh
+```
 
-# Enable color jitter with custom params
+```bash
+OUTPUT_DIR="${OUTPUT_ROOT}/instruction_run_custom" \
 USE_COLOR_JITTER=1 \
 COLOR_JITTER_PARAMS="brightness 0.2 contrast 0.3 saturation 0.4 hue 0.05" \
 bash scripts/preprocess_agibot/finetune_geniesim_instruction.sh
 ```
 
-Output directory default pattern:
-- `/ephemeral/gr00t_models/instruction_color_jitter_{on|off}_YYYYMMDD_HH`
+## 4) Notes
 
-## 5) Move Checkpoints for Local Simulation Evaluation
+- outputs go to `ephemeral`, so sync important checkpoints out regularly
+- `decord` is still important in this workflow
+- training prefers `torchcodec` and can fall back to `decord`
+- if you see "torchcodec is not available, falling back to decord", training is decoding with `decord`
 
-After training finishes, copy only the new checkpoint output directory to local machine:
+Example checkpoint backup:
 
 ```bash
-rsync -avP /ephemeral/gr00t_models/<run_dir> <local_user>@<local_host>:/path/to/local/gr00t_models/
+rsync -avP /ephemeral/gr00t_models/<run_dir> <user>@<host>:/path/to/gr00t_models/
 ```
 
-Keep embodiment consistent during evaluation:
-- `AGIBOT_GENIE1` (current script default)
+## 5) Optional: Build Preprocessed Data
 
-## 6) Notes
+This section is only needed if you do not already have preprocessed data.
 
-- `GenieSimAssets` is not required for cloud post-training itself.
-- Keep large datasets/checkpoints under `/ephemeral` to avoid filling `/home`.
-- Video stack summary (important):
-  - Raw instruction videos are sampled as `hevc` (`H.265`) in `.mp4` containers.
-  - Preprocessing rewrites videos to `.mp4` with `mp4v` codec (`cv2.VideoWriter_fourcc("mp4v")`).
-  - Preprocessing scripts (`preprocess_dataset.py`, `trim_static_frames.py`) require `decord`.
-  - Training data loading defaults to `torchcodec` backend and can fall back to `decord` if `torchcodec` is unavailable.
-  - Frequent warning like "torchcodec is not available, falling back to decord" means training is currently decoding with `decord`.
-- Why `gr00t/configs/finetune_config.py` was changed:
-  - `dataset_paths` was updated to `= None` to fix Python dataclass initialization order.
-  - Without this, launch fails early with:
-    - `TypeError: non-default argument 'dataset_paths' follows default argument`
-- Why `scripts/preprocess_agibot/finetune_geniesim_instruction.sh` uses `uv run --python 3.10 torchrun`:
-  - The Eagle backbone requires FlashAttention2 (`flash_attn`), and the current environment setup expects a Python 3.10-compatible wheel.
-  - Running with Python 3.12 causes startup failure before training due to missing/unsupported `flash_attn`.
-  - Pinning `--python 3.10` ensures the training command resolves a compatible runtime.
+Relevant scripts:
+
+- `scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh`
+- `scripts/preprocess_agibot/preprocess_all_instruction_tasks.sh`
+- `scripts/preprocess_agibot/preprocess_agibot_data.sh`
+- `scripts/preprocess_agibot/preprocess_dataset.py`
+- `scripts/preprocess_agibot/trim_static_frames.py`
+
+Quick examples:
+
+```bash
+cd /home/$USER/iCode/VLA/Isaac-GR00T
+bash scripts/preprocess_agibot/verify_and_unpack_geniesim_archives.sh --extract
+```
+
+```bash
+cd /home/$USER/iCode/VLA/Isaac-GR00T
+bash scripts/preprocess_agibot/preprocess_all_instruction_tasks.sh
+```
+
+Video/codec notes:
+
+- raw instruction videos are commonly `hevc` (`H.265`) in `.mp4`
+- preprocessing rewrites videos to `.mp4` using `mp4v`
+- preprocessing scripts rely on `decord`
 
