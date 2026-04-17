@@ -123,3 +123,45 @@ SRC_ROOT="${RAW_ROOT}" DST_ROOT="${PREPROCESSED_ROOT}" bash scripts/preprocess_a
 ```
 
 Raw video is often HEVC in `.mp4`; preprocessing typically rewrites to `mp4v` and uses `decord`.
+
+## 8) Preprocess Comparison Workflow (raw vs preprocessed)
+
+Use this when you want to verify where visual differences come from in the preprocess chain.
+
+Pipeline reminder (video side):
+
+1. decode raw frame(s)
+2. resize + pad to `256x256`
+3. write `mp4v` video
+4. decode + trim by `instruction_segments`
+5. write `mp4v` again
+6. training reads (decodes) the final video
+
+Because trim changes frame indices, comparison must align frames by trim mapping (`raw_frame = raw_trim_start + pre_step`), not by raw index directly.
+
+### Three setups used in comparison
+
+- **Setup 1**: `raw_preprocess_like vs pre_decoded`  
+  Compare raw frame after direct `resize+pad` (no re-encode) against decoded frame from preprocessed video.
+- **Setup 2**: `simulated_redecoded vs pre_decoded`  
+  Compare raw frame after one `mp4v` save+decode against preprocessed decode.
+- **Setup 3**: `simulated_full_pipeline_redecoded vs pre_decoded`  
+  Compare raw frame after full pipeline replay (`resize/pad -> save -> trim -> save -> decode`) against preprocessed decode.
+
+### Run the comparison script
+
+```bash
+cd /home/$USER/iCode/VLA/Isaac-GR00T
+uv run python scripts/preprocess_agibot/compare_preprocessed_sample.py \
+  --task pick_block_color \
+  --episode 0 \
+  --pre-step 0
+```
+
+Outputs:
+
+- compact metrics: terminal JSON (`video_mae`, `simulated_video_mae`, `simulated_full_pipeline_video_mae`, etc.)
+- detailed report: `debug_outputs/preprocess_compare/<task>/episode_<id>/step_<id>/summary.json`
+- visual diffs: `.../images/_diff_viz/*_diff_grid.png`
+
+Interpretation tip: if Setup 3 is near zero while Setup 1/2 are not, then differences are from incomplete replay of the preprocess chain (typically re-encode stages), not random drift.
