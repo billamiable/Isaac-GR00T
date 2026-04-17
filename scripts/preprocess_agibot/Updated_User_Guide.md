@@ -2,6 +2,12 @@
 
 Convention: code under `home`, large data under `ephemeral`.
 
+Test environment used for this guide:
+
+- Platform: NVIDIA Brev
+- Node: 1x H100 node
+- GPUs: 8 GPUs on the same node
+
 Training needs **`PREPROCESSED_ROOT`** (and the base checkpoint). Either download preprocessed data or **run the preprocess pipeline** (§7)—that step is required unless you already have `PREPROCESSED_ROOT` populated. **Raw GenieSim instruction** under `RAW_ROOT` is **optional**: only if you preprocess locally from archives instead of using a pre-downloaded preprocessed dataset.
 
 Main paths:
@@ -44,19 +50,30 @@ uv pip install -e .
 
 After changing dependencies or lockfile, run `uv sync` again (with or without having used `install_deps.sh`).
 
-## 3) Optional: Downloads
+## 3) Downloads
 
 | Script | Default role |
 | ------ | ------------ |
 | [`download_gr00t_n1d6_base.sh`](download_gr00t_n1d6_base.sh) | [GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) → `BASE_MODEL_PATH` |
-| [`download_instruction_preprocessed_hf.sh`](download_instruction_preprocessed_hf.sh) | HF dataset → `PREPROCESSED_ROOT` (if you use a published dump) |
-| [`download_geniesim_instruction_modelscope.sh`](download_geniesim_instruction_modelscope.sh) | Optional raw instruction ([ModelScope](https://modelscope.cn/datasets/agibot_world/GenieSim3.0-Dataset/tree/master/task_suite/instruction)) → `RAW_ROOT`; needs `uv pip install modelscope` |
+| [`download_instruction_preprocessed_hf.sh`](download_instruction_preprocessed_hf.sh) | Download preprocessed dataset from HF into `PREPROCESSED_ROOT` |
+| [`download_geniesim_instruction_modelscope.sh`](download_geniesim_instruction_modelscope.sh) | Download raw instruction from ModelScope into `RAW_ROOT`; needs `uv pip install modelscope` |
+
+Pick one dataset path (A or B), plus base model download:
 
 ```bash
 cd /home/$USER/iCode/VLA/Isaac-GR00T
 bash scripts/preprocess_agibot/download_gr00t_n1d6_base.sh
-bash scripts/preprocess_agibot/download_instruction_preprocessed_hf.sh   # if applicable
-uv pip install modelscope && bash scripts/preprocess_agibot/download_geniesim_instruction_modelscope.sh   # only if you need RAW_ROOT
+```
+
+```bash
+# A) Use preprocessed dataset directly (skip local preprocess)
+bash scripts/preprocess_agibot/download_instruction_preprocessed_hf.sh
+```
+
+```bash
+# B) Use raw dataset and run preprocess locally later (§7)
+uv pip install modelscope
+bash scripts/preprocess_agibot/download_geniesim_instruction_modelscope.sh
 ```
 
 HF: `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` or `uv run huggingface-cli login`. Heavy many-file repos: see [rate limits](https://huggingface.co/docs/hub/rate-limits); tune env vars in `download_instruction_preprocessed_hf.sh` if needed.
@@ -124,7 +141,62 @@ SRC_ROOT="${RAW_ROOT}" DST_ROOT="${PREPROCESSED_ROOT}" bash scripts/preprocess_a
 
 Raw video is often HEVC in `.mp4`; preprocessing typically rewrites to `mp4v` and uses `decord`.
 
-## 8) Preprocess Comparison Workflow (raw vs preprocessed)
+
+## 8) Benchmark (Task Suite Batch Run)
+
+Reference first: [Genie Sim User Guide - Batch Run Task Suite](https://agibot-world.com/sim-evaluation/docs/#/v3?id=_315-batch-run-task-suite).
+
+Use this to run local task-suite benchmark against a GR00T websocket inference service.
+
+1. Clone simulator repo and build docker image:
+
+```bash
+git clone https://github.com/AgibotTech/genie_sim.git
+cd genie_sim
+docker build -f ./scripts/dockerfile -t registry.agibot.com/genie-sim/open_source:latest .
+```
+
+2. Download GenieSim assets and place them under `source/geniesim/assets`:
+
+```bash
+git clone https://modelscope.cn/datasets/agibot_world/GenieSimAssets.git -b rolling
+```
+
+3. Start simulator GUI from repo root:
+
+```bash
+cd genie_sim
+./scripts/start_gui.sh
+```
+
+4. Open a new terminal and enter the container:
+
+```bash
+cd genie_sim
+./scripts/into.sh
+```
+
+5. In the GR00T repo/container, start websocket inference server and note the printed `ip:port`:
+
+```bash
+uv run --extra websocket python scripts/deployment/serve_gr00t_websocket.py \
+  --model-path /path/to/checkpoints/output_dir \
+  --port 8000
+```
+
+6. In benchmark container, run IF benchmark on local host.
+
+```bash
+./scripts/run_batch_tasks.sh --num-episode 3 --type if --infer-host {ip:port}
+```
+
+Local benchmark note:
+
+- We run this on local machine.
+- Final reported results use `--num-episode 3`; for quick smoke testing, `--num-episode 1` is acceptable.
+- Runtime is long: about 2 hours per run, around 6 hours total for 3 episodes.
+
+## Appendix A) Preprocess Comparison Workflow (raw vs preprocessed)
 
 Use this when you want to verify where visual differences come from in the preprocess chain.
 
@@ -166,28 +238,13 @@ Outputs:
 
 Interpretation tip: if Setup 3 is near zero while Setup 1/2 are not, then differences are from incomplete replay of the preprocess chain (typically re-encode stages), not random drift.
 
-## 9) Benchmark (Task Suite Batch Run)
+Current visual examples (copied under `scripts/preprocess_agibot/preprocess_compare_figures/`):
 
-Use this to run a quick task-suite benchmark against a GR00T websocket inference service.
+![Top head diff grid](preprocess_compare_figures/top_head_diff_grid.png)
+![Hand left diff grid](preprocess_compare_figures/hand_left_diff_grid.png)
+![Hand right diff grid](preprocess_compare_figures/hand_right_diff_grid.png)
 
-1. Download GenieSim assets and place them under `source/geniesim/assets`:
+Current analysis:
 
-```bash
-git clone https://modelscope.cn/datasets/agibot_world/GenieSimAssets.git -b rolling
-```
-
-2. Start simulator GUI and enter container from project root:
-
-```bash
-./scripts/start_gui.sh && ./scripts/into.sh
-```
-
-3. In the GR00T repo/container, start websocket inference server (`serve_gr00t_websocket.py`), then note the printed `ip:port`.
-
-4. In benchmark container, run one-episode IF benchmark batch:
-
-```bash
-./scripts/run_batch_tasks.sh --num-episode 1 --type if --infer-host {ip:port}
-```
-
-Reference: [Genie Sim User Guide - Batch Run Task Suite](https://agibot-world.com/sim-evaluation/docs/#/v3?id=_315-batch-run-task-suite).
+- From these visualizations, differences are hard to perceive by eye for Setup 2/3.
+- In our subset rerun check, Setup 3 reaches near-zero/zero frame and processor differences, indicating preprocess image transformation is likely not the dominant source of downstream mismatch.
