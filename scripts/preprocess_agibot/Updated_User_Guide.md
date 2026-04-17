@@ -165,3 +165,29 @@ Outputs:
 - visual diffs: `.../images/_diff_viz/*_diff_grid.png`
 
 Interpretation tip: if Setup 3 is near zero while Setup 1/2 are not, then differences are from incomplete replay of the preprocess chain (typically re-encode stages), not random drift.
+
+## 9) Benchmark (Task Suite Batch Run)
+
+Use this to run a quick task-suite benchmark against a GR00T websocket inference service.
+
+1. Download GenieSim assets and place them under `source/geniesim/assets`:
+
+```bash
+git clone https://modelscope.cn/datasets/agibot_world/GenieSimAssets.git -b rolling
+```
+
+2. Start simulator GUI and enter container from project root:
+
+```bash
+./scripts/start_gui.sh && ./scripts/into.sh
+```
+
+3. In the GR00T repo/container, start websocket inference server (`serve_gr00t_websocket.py`), then note the printed `ip:port`.
+
+4. In benchmark container, run one-episode IF benchmark batch:
+
+```bash
+./scripts/run_batch_tasks.sh --num-episode 1 --type if --infer-host {ip:port}
+```
+
+Reference: [Genie Sim User Guide - Batch Run Task Suite](https://agibot-world.com/sim-evaluation/docs/#/v3?id=_315-batch-run-task-suite).
