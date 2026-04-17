@@ -2,6 +2,8 @@
 
 This guide covers the end-to-end workflow for preparing Agibot datasets, fine-tuning the GR00T model, and deploying the inference service.
 
+> **Datasets, Assets & Benchmarks:** For training datasets, simulation assets, and benchmark resources, please visit https://github.com/AgibotTech/genie_sim
+
 ---
 
 ## 1. Data Preprocessing
@@ -125,7 +127,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 torchrun --nproc_per_node=8 --master_port=29500 gr00t/experiment/launch_finetune.py \
   --base-model-path /path/to/gr00t_16_models \
-  --dataset-path /path/to/preprocessed_dataset \
+  --dataset-paths /path/to/preprocessed_dataset_1 /path/to/preprocessed_dataset_2 \
   --embodiment-tag AGIBOT_GENIE1 \
   --output-dir /path/to/checkpoints/output_dir \
   --num-gpus 8 \
@@ -141,7 +143,7 @@ torchrun --nproc_per_node=8 --master_port=29500 gr00t/experiment/launch_finetune
 | Argument | Description |
 |----------|-------------|
 | `--base-model-path` | Path to the pre-trained GR00T N1.6 model weights |
-| `--dataset-path` | Path to the preprocessed dataset (output from Stage 1) |
+| `--dataset-paths` | Space-separated list of preprocessed dataset paths (output from Stage 1); supports multiple datasets for co-training |
 | `--embodiment-tag` | Embodiment identifier; use `AGIBOT_GENIE1` (without waist) or `AGIBOT_GENIE1_WAIST` (with waist) |
 | `--output-dir` | Directory where checkpoints and logs will be saved |
 | `--num-gpus` | Number of GPUs (should match `nproc_per_node`) |
@@ -150,6 +152,12 @@ torchrun --nproc_per_node=8 --master_port=29500 gr00t/experiment/launch_finetune
 | `--save-steps` | Save a checkpoint every N steps |
 | `--save-total-limit` | Maximum number of checkpoints to keep on disk |
 | `--dataloader_num_workers` | Number of data-loading workers per process |
+| `--mix-ratios` | (Optional) Space-separated mixing ratios when using multiple datasets; defaults to equal weighting |
+
+**Tips:**
+- Ensure `nproc_per_node` matches `--num-gpus` and the number of devices in `CUDA_VISIBLE_DEVICES`.
+- If the training node has port conflicts, change `--master_port` to another available port.
+- When using `--dataset-paths` with multiple datasets, use `--mix-ratios` to control the sampling proportion of each dataset.
 
 ---
 
