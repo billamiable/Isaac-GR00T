@@ -176,10 +176,11 @@ cd genie_sim
 ./scripts/into.sh
 ```
 
-5. In the GR00T repo/container, start websocket inference server and note the printed `ip:port`:
+5. In the GR00T repo/container, install websocket dependency and start inference server, then note the printed `ip:port`:
 
 ```bash
-uv run --extra websocket python scripts/deployment/serve_gr00t_websocket.py \
+uv pip install websockets
+uv run python scripts/deployment/serve_gr00t_websocket.py \
   --model-path /path/to/checkpoints/output_dir \
   --port 8000
 ```
@@ -188,6 +189,12 @@ uv run --extra websocket python scripts/deployment/serve_gr00t_websocket.py \
 
 ```bash
 ./scripts/run_batch_tasks.sh --num-episode 3 --type if --infer-host {ip:port}
+```
+
+Example:
+
+```bash
+./scripts/run_batch_tasks.sh --num-episode 3 --type if --infer-host 127.0.1.1:8000
 ```
 
 Local benchmark note:
