@@ -222,13 +222,47 @@ Every runtime setting can be overridden with an environment variable:
 `USE_WANDB`. Extra `launch_finetune.py` arguments may be appended to either
 script.
 
-## 6. LIBERO recipe status
+## 6. LIBERO relative xyz+rotvec SFT
 
-`train_libero_rel_uv.sh` and its original config filenames are included for
-the custom `all_libero_suites_rel_rotvec` dataset. The script is portable and
-uses the same `BASE_MODEL_PATH`, `DATASET_PATH`, and `OUTPUT_DIR`
-interface. It has not been included in the ranch smoke-test acceptance gate
-because that dataset is not currently available locally.
+`train_libero_rel_uv.sh` trains the custom `all_libero_suites_rel_rotvec`
+dataset with `NEW_EMBODIMENT`. The state and action are seven-dimensional:
+EEF xyz+rotvec `[0:6]` and gripper `[6:7]`. EEF actions are relative to the
+current EEF state; the gripper remains absolute. The two camera inputs are
+`agentview_cam` and `eye_in_hand_cam`.
+
+Set the LIBERO dataset path:
+
+```bash
+export DATASET_PATH="${ARENA_DATA_ROOT}/all_libero_suites_rel_rotvec"
+```
+
+The expected dataset has 1,477 episodes, 243,763 frames, 41 tasks, and two
+videos per episode. Its `meta/relative_stats.json` must contain statistics for
+`franka_eef_pose`.
+
+Single-GPU 10-step smoke test:
+
+```bash
+export OUTPUT_DIR="${SFT_OUTPUT_ROOT}/libero_relative_smoke"
+
+CUDA_VISIBLE_DEVICES=0 \
+NUM_GPUS=1 \
+GLOBAL_BATCH_SIZE=1 \
+MAX_STEPS=10 \
+SAVE_STEPS=10 \
+SAVE_TOTAL_LIMIT=1 \
+DATALOADER_NUM_WORKERS=0 \
+USE_WANDB=0 \
+bash examples/arena_sft/scripts/train_libero_rel_uv.sh
+```
+
+Full SFT uses the script defaults: 8 GPUs, global batch size 160, 20,000
+steps, and a checkpoint every 5,000 steps:
+
+```bash
+export OUTPUT_DIR="${SFT_OUTPUT_ROOT}/gr00t_n16_libero_all_suites_rel_rotvec_out"
+bash examples/arena_sft/scripts/train_libero_rel_uv.sh
+```
 
 The two resolved LIBERO YAML files are provenance snapshots, not launch files.
 Machine-specific source paths have been replaced by the symbolic values
@@ -248,7 +282,7 @@ Machine-specific source paths have been replaced by the symbolic values
 - **Port already in use:** set a different `MASTER_PORT`.
 - **Incorrect relative statistics:** back up the existing
   `meta/relative_stats.json`, then rerun only the relative recipe so rank 0
-  computes stats for the relative arm keys.
+  computes stats for the configured relative action keys.
 - **W&B authentication:** use `USE_WANDB=0` for smoke tests, or run
   `uv run wandb login` before a full run.
 
@@ -259,10 +293,15 @@ The ranch dataset used for the initial verification contains 70 episodes,
 Python 3.10.19, PyTorch 2.7.1+cu128, and one 48 GB RTX 5880 Ada GPU;
 peak training memory was approximately 44.8 GB. The saved resolved configs
 confirm four absolute action groups for the absolute run, and relative arms
-plus absolute hands for the relative run. Results and any required
-compatibility fixes are recorded here after each smoke run:
+plus absolute hands for the relative run.
+
+The LIBERO dataset contains 1,477 episodes, 243,763 frames, 41 tasks, and
+1,477 videos for each of its two camera views. Its resolved config confirms
+relative EEF xyz+rotvec actions and an absolute gripper. Results and any
+required compatibility fixes are recorded here after each smoke run:
 
 | Variant | Training steps | Result | Evidence |
 | --- | ---: | --- | --- |
 | absolute arms/hands | 10 | PASS | exit 0; checkpoint-10; loss 0.302; grad norm 1.6502 |
 | relative arms, absolute hands | 10 | PASS | exit 0; checkpoint-10; loss 0.5264; grad norm 1.8091 |
+| LIBERO relative EEF xyz+rotvec, absolute gripper | 10 | PASS | exit 0; checkpoint-10; loss 1.2794; grad norm 2.3682 |
